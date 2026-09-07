@@ -7,6 +7,14 @@ WIKI_DIR="/var/www/html/p99wiki"
 DOMAIN="p99.funcamp.net"
 YACY_DOMAIN="eq.funcamp.net"
 
+# The wiki serves a broken/mismatched TLS chain (leaf issued by SSL.com TLS
+# Issuing RSA CA R1, but Sectigo intermediates are sent instead), so cert
+# validation fails with "unable to get local issuer certificate". We ship the
+# correct intermediate next to this script and pass it to curl with --cacert,
+# so verification still happens (no -k / insecure).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SSLCOM_INTERMEDIATE="$SCRIPT_DIR/sslcom-tls-i-rsa-r1.pem"
+
 # Parse arguments for Dry Run mode
 DRY_RUN=0
 if [[ "$1" == "--dry-run" || "$1" == "-d" ]]; then
@@ -25,12 +33,9 @@ cd "$WIKI_DIR" || {
 echo "Step 1: Interrogating MediaWiki API for recent changes..."
 
 # Ask the API for the last 500 changes in JSON format.
-# The wiki serves a broken/mismatched TLS chain (leaf issued by SSL.com, but
-# Sectigo intermediates are sent), so cert validation fails with "unable to
-# get local issuer certificate". With plain -s that error is swallowed and the
-# script falsely reports "No recent changes". Disable verification to match the
-# --no-check-certificate already used for wget on this same host below.
-curl -sk "https://wiki.project1999.com/api.php?action=query&list=recentchanges&rclimit=500&rcprop=title&format=json" |
+# The wiki sends a mismatched TLS chain, so supply the correct SSL.com
+# intermediate via --cacert (keeps verification on, unlike -k).
+curl -s --cacert "$SSLCOM_INTERMEDIATE" "https://wiki.project1999.com/api.php?action=query&list=recentchanges&rclimit=500&rcprop=title&format=json" |
   grep -o '"title":"[^"]*"' |
   cut -d'"' -f4 |
   tr ' ' '_' |
