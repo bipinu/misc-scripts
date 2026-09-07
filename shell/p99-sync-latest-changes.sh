@@ -25,7 +25,12 @@ cd "$WIKI_DIR" || {
 echo "Step 1: Interrogating MediaWiki API for recent changes..."
 
 # Ask the API for the last 500 changes in JSON format.
-curl -s "https://wiki.project1999.com/api.php?action=query&list=recentchanges&rclimit=500&rcprop=title&format=json" |
+# The wiki serves a broken/mismatched TLS chain (leaf issued by SSL.com, but
+# Sectigo intermediates are sent), so cert validation fails with "unable to
+# get local issuer certificate". With plain -s that error is swallowed and the
+# script falsely reports "No recent changes". Disable verification to match the
+# --no-check-certificate already used for wget on this same host below.
+curl -sk "https://wiki.project1999.com/api.php?action=query&list=recentchanges&rclimit=500&rcprop=title&format=json" |
   grep -o '"title":"[^"]*"' |
   cut -d'"' -f4 |
   tr ' ' '_' |
